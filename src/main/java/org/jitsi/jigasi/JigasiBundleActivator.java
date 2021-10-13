@@ -87,6 +87,13 @@ public class JigasiBundleActivator
         = "org.jitsi.jigasi.ENABLE_SIP_STARTMUTED";
 
     /**
+     * The property name for the boolean value that enabled or disables
+     * forced (vs graceful) shutdown.
+     */
+    public final static String P_NAME_ENABLE_FORCED_SHUTDOWN
+        = "org.jitsi.jigasi.ENABLE_FORCED_SHUTDOWN";
+
+    /**
      * The default value for room join timeout.
      */
     public final static long MUC_JOIN_TIMEOUT_DEFAULT_VALUE = 10;
@@ -105,6 +112,11 @@ public class JigasiBundleActivator
      * The default value for enabling StartMuted over SIP.
      */
     public final static boolean ENABLE_SIP_STARTMUTED_DEFAULT_VALUE = false;
+
+    /**
+     * The default value for enabling forced shutdown.
+     */
+    public final static boolean ENABLE_FORCED_SHUTDOWN_DEFAULT_VALUE = false;
 
     /**
      * The Gateway which will manage bridging between a jvb conference and a sip
@@ -173,6 +185,17 @@ public class JigasiBundleActivator
     {
         return JigasiBundleActivator.getConfigurationService()
             .getBoolean(P_NAME_ENABLE_SIP_STARTMUTED, ENABLE_SIP_STARTMUTED_DEFAULT_VALUE);
+    }
+
+    /**
+     * Get whether forced shutdown is enabled.
+     *
+     * @return true if forced shutdown, false, otherwise.
+     */
+    public static boolean isForcedShutdownEnabled()
+    {
+        return JigasiBundleActivator.getConfigurationService()
+            .getBoolean(P_NAME_ENABLE_FORCED_SHUTDOWN, ENABLE_FORCED_SHUTDOWN_DEFAULT_VALUE);
     }
 
     /**
@@ -359,6 +382,10 @@ public class JigasiBundleActivator
 
             logger.info("Jigasi is shutting down NOW");
             shutdownService.beginShutdown();
+        }
+        else if (isForcedShutdownEnabled())
+        {
+            sessions.forEach(session -> session.hangUp());
         }
     }
 
