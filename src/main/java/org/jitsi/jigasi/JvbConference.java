@@ -2056,10 +2056,10 @@ public class JvbConference
                     = OperationSetBasicTelephony.HANGUP_REASON_TIMEOUT;
 
                 stop();
-
-                timeoutThread = null;
-                logger.debug("Timeout thread is done " + this);
             }
+
+            timeoutThread = null;
+            logger.debug("Timeout thread is done " + this);
         }
 
         private void cancel()
@@ -2069,7 +2069,9 @@ public class JvbConference
                 willCauseTimeout = false;
 
                 if (timeoutThread == null)
+                {
                     return;
+                }
 
                 logger.debug("Trying to cancel " + this);
 
@@ -2111,7 +2113,7 @@ public class JvbConference
         public String toString()
         {
             return "JvbConferenceStopTimeout[" + callContext
-                + ", willCauseTimeout:" + willCauseTimeout
+                + ", willCauseTimeout:" + willCauseTimeout + " details:"
                 + (willCauseTimeout ? endReason + "," + errorLog: "")
                 + "]@"+ hashCode();
         }
