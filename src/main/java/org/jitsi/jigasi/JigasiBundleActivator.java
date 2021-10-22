@@ -319,8 +319,10 @@ public class JigasiBundleActivator
      * Enables graceful shutdown mode on this jigasi instance and eventually
      * starts the shutdown immediately if no conferences are currently being
      * hosted. Otherwise jigasi will shutdown once all conferences expire.
+     *
+     * @param forced Drop existing calls
      */
-    public static void enableGracefulShutdownMode()
+    public static void enableGracefulShutdownMode(boolean forced)
     {
         if (!shutdownInProgress)
         {
@@ -330,6 +332,15 @@ public class JigasiBundleActivator
         maybeDoShutdown();
 
         Statistics.updatePresenceStatusForXmppProviders();
+
+        if (forced)
+        {
+            gateways.forEach(gw -> {
+                List<AbstractGatewaySession> sessions =
+                    (List<AbstractGatewaySession>) gw.getActiveSessions();
+                sessions.forEach(session -> session.hangUp());
+            });
+        }
     }
 
     /**
