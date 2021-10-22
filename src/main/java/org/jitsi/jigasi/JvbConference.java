@@ -2270,7 +2270,7 @@ public class JvbConference
                         if (sendingBitrate == 218) {
                             // This instance has stopped working (media stopped flowing)
                             logger.warn(callContext + " ICC: Graceful Shutdown");
-                            JigasiBundleActivator.enableGracefulShutdownMode();
+                            JigasiBundleActivator.enableGracefulShutdownMode(false);
                             dropCall();
                         }
                     }

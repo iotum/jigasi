@@ -243,7 +243,9 @@ public class HandlerImpl
             if (POST_HTTP_METHOD.equals(request.getMethod()))
             {
                 // Update graceful shutdown state
-                JigasiBundleActivator.enableGracefulShutdownMode();
+                JigasiBundleActivator.enableGracefulShutdownMode(
+                    request.getParameter("forced") != null
+                );
             }
             else
             {
