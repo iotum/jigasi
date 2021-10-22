@@ -2267,7 +2267,8 @@ public class JvbConference
                     if (stream != null && stream instanceof AudioMediaStreamImpl)
                     {
                         long sendingBitrate = logStats((AudioMediaStreamImpl) stream, "SIP");
-                        if (sendingBitrate == 218) {
+                        if (sendingBitrate < 300) {
+                            // Normal bitrate is >10k. Observed problem bitrate: 218, 186
                             // This instance has stopped working (media stopped flowing)
                             logger.warn(callContext + " ICC: Graceful Shutdown");
                             JigasiBundleActivator.enableGracefulShutdownMode(false);
