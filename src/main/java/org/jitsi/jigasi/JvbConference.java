@@ -2202,6 +2202,7 @@ public class JvbConference
             if (peer == null)
             {
                 dropCall();
+                return;
             }
 
             if (peer instanceof MediaAwareCallPeer)
@@ -2216,11 +2217,12 @@ public class JvbConference
                     if (stream == null)
                     {
                         dropCall();
+                        return;
                     }
 
                     if (stream instanceof AudioMediaStreamImpl)
                     {
-                        logStats((AudioMediaStreamImpl) stream, "JVB");
+                        long sendingBitrate = logStats((AudioMediaStreamImpl) stream, "JVB");
                         try
                         {
                             // if there is no activity on the audio channel this means there is a problem
@@ -2228,6 +2230,13 @@ public class JvbConference
                             if (((AudioMediaStreamImpl) stream).getLastInputActivityTime() <= 0)
                             {
                                 dropCall();
+                                return;
+                            }
+                            else if (sendingBitrate < 10000)
+                            {
+                                // Normal bitrate is >10k - we don't need to shutdown jigasi.
+                                dropCall();
+                                return;
                             }
                         }
                         catch(IOException e)
@@ -2239,6 +2248,7 @@ public class JvbConference
                 else
                 {
                     dropCall();
+                    return;
                 }
             }
 
@@ -2267,12 +2277,14 @@ public class JvbConference
                     if (stream != null && stream instanceof AudioMediaStreamImpl)
                     {
                         long sendingBitrate = logStats((AudioMediaStreamImpl) stream, "SIP");
-                        if (sendingBitrate < 300) {
+                        if (sendingBitrate < 300)
+                        {
                             // Normal bitrate is >10k. Observed problem bitrate: 218, 186
                             // This instance has stopped working (media stopped flowing)
                             logger.warn(callContext + " ICC: Graceful Shutdown");
                             JigasiBundleActivator.enableGracefulShutdownMode(false);
                             dropCall();
+                            return;
                         }
                     }
                 }
