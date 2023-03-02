@@ -252,7 +252,12 @@ public class HandlerImpl
 
                 // Update graceful shutdown state in new thread, so we can finish and return a response to the
                 // http request
-                new Thread(JigasiBundleActivator::enableGracefulShutdownMode).start();
+                new Thread(() ->
+                {
+                    JigasiBundleActivator.enableGracefulShutdownMode(
+                        request.getParameter("forced") != null
+                    );
+                }).start();
             }
             else
             {
