@@ -631,6 +631,21 @@ public class CallManager
                 catch (Exception ofe)
                 {
                     logger.error("Could not hang up: " + peer, ofe);
+
+                    if (ofe instanceof OperationFailedException)
+                    {
+                        Throwable cause = ofe.getCause();
+                        if (cause != null)
+                        {
+                            // e.g. "Caused by: javax.sip.SipException: Cannot find listening point for transport UDP"
+                            String message = cause.getMessage();
+                            if (message != null && message.contains("Cannot find listening point"))
+                            {
+                                logger.warn("SIP Stack Failed. ICC: Forced Shutdown");
+                                JigasiBundleActivator.enableGracefulShutdownMode(true);
+                            }
+                        }
+                    }
                 }
             }
 
