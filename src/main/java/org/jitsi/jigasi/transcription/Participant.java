@@ -681,6 +681,26 @@ public class Participant
             {
                 session.sendRequest(request);
             }
+            else if (transcriber.getTranscriptionService().supportsStreamRecognition())
+            {
+                // session got ended prematurely, or lazy setup.
+                if (!isCompleted && session != null)
+                {
+                    // user is still here
+                    if (!session.pending())
+                    {
+                        // re-establish prematurely ended streaming session
+                        // FIXME: the current request is lost (unless lazy setup)
+                        sessions.remove(getLanguageKey());
+                        joined();
+                    }
+                    if (session.pending())
+                    {
+                        // do lazy setup
+                        session.sendRequest(request);
+                    }
+                }
+            }
             else
             // fallback if TranscriptionService does not support streams
             // or session got ended prematurely

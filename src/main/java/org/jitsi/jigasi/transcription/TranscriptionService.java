@@ -126,6 +126,16 @@ public interface TranscriptionService
         boolean ended();
 
         /**
+         * Get whether this StreamingRecognitionSession requires lazy setup
+         *
+         * @return true when the session requires lazy setup
+         */
+        default boolean pending()
+        {
+            return false;
+        }
+
+        /**
          * Add a TranscriptionListener which will be notified when a new
          * transcription result will come in
          *
