@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  pull_request:
+    branches:
+      - "jigasi-*"
+
+env:
+  # Java version to use for the release
+  RELEASE_JAVA_VERSION: 8
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: temurin
+          java-version: 11
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn package -B -D maven.test.skip=true -D assembly.skipAssembly=false
+
+      - name: Create Tag
+        uses: rickstaa/action-create-tag@v1
+        with:
+          tag: ${{ github.base_ref }}
+          message: "Release ${{ github.base_ref }}"
+
+      - uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.base_ref }}
+          prerelease: true
+          fail_on_unmatched_files: true
+          files: |
+            target/jigasi-1.1-SNAPSHOT.jar
