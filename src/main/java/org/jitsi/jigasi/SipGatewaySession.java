@@ -536,6 +536,13 @@ public class SipGatewaySession
         {
             logger.error(this.callContext + " " + error, error);
 
+            if (error instanceof IllegalArgumentException)
+            {
+                // e.g. "invalid transport" from SipStackSharing.getJainSipProvider
+                logger.warn(this.callContext + " ICC: Graceful Shutdown");
+                JigasiBundleActivator.enableGracefulShutdownMode(false);
+            }
+
             if (error instanceof OperationFailedException
                 && !CallManager.isHealthy())
             {
@@ -667,7 +674,7 @@ public class SipGatewaySession
                     callStateListener.handleCallState(sipCall, null);
                 }
             }
-            catch (OperationFailedException | ParseException e)
+            catch (IllegalArgumentException | OperationFailedException | ParseException e)
             {
                 return e;
             }
