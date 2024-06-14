@@ -38,30 +38,46 @@ public class DeepgramTranscriptionService
     /**
      * BCP-47 (see https://www.rfc-editor.org/rfc/bcp/bcp47.txt)
      * language tags of the languages supported by Deepgram API
-     * (See https://developers.deepgram.com/docs/language)
+     * (See https://developers.deepgram.com/docs/models-languages-overview)
      */
     public final static String[] SUPPORTED_LANGUAGE_TAGS = new String[]
         {
-          "da",
-          "de",
-          "en", "en-AU", "en-GB", "en-IN", "en-NZ", "en-US",
-          "es", "es-419",
-          "fr", "fr-CA",
-          "hi", "hi-Latn",
-          "id",
-          "it",
-          "ja",
-          "ko",
-          "nl",
-          "no",
-          "pl",
-          "pt", "pt-BR", "pt-PT",
-          "ru",
-          "sv",
-          "ta",
-          "tr",
-          "uk",
-          "zh-CN", "zh-TW"
+            "bg", // Bulgarian
+            "ca", // Catalan
+            "zh", "zh-CN", "zh-Hans", // Chinese (Mandarin, Simplified)
+            "zh-TW", "zh-Hant", // Chinese (Mandarin, Traditional)
+            "cs", // Czech
+            "da", "da-DK", // Danish
+            "nl", // Dutch
+            "en", "en-US", "en-AU", "en-GB", "en-NZ", "en-IN", // English
+            "et", // Estonian
+            "fi", // Finnish
+            "nl-BE", // Flemish
+            "fr", "fr-CA", // French
+            "de", // German
+            "de-CH", // German (Switzerland)
+            "el", // Greek
+            "hi", "hi-Latn", // Hindi
+            "hu", // Hungarian
+            "id", // Indonesian
+            "it", // Italian
+            "ja", // Japanese
+            "ko", "ko-KR", // Korean
+            "lv", // Latvian
+            "lt", // Lithuanian
+            "ms", // Malay
+            "no", // Norwegian
+            "pl", // Polish
+            "pt", "pt-BR", // Portuguese
+            "ro", // Romanian
+            "ru", // Russian
+            "sk", // Slovak
+            "es", "es-419", // Spanish
+            "sv", "sv-SE", // Swedish
+            "th", "th-TH", // Thai
+            "tr", // Turkish
+            "uk", // Ukrainian
+            "vi", // Vietnamese
         };
 
     /**
@@ -191,70 +207,15 @@ public class DeepgramTranscriptionService
     public void sendSingleRequest(final TranscriptionRequest request,
                                   final Consumer<TranscriptionResult> resultConsumer)
     {
-        // Try to create the client, which can throw an IOException
-        try
-        {
-            // Set the sampling rate and encoding of the audio
-            AudioFormat format = request.getFormat();
-            if (!format.getEncoding().equals("LINEAR"))
-            {
-                throw new IllegalArgumentException("Given AudioFormat" +
-                        "has unexpected encoding: " + format.getEncoding());
-            }
-            Instant timeRequestReceived = Instant.now();
-
-            HttpClient httpClient = new HttpClient();
-            // Start the client
-            httpClient.start();
-            // Create a request object
-            Request httpRequest = httpClient.POST("https://" + apiEndpoint);
-            // Set the content type and accept headers
-            httpRequest.headers(headers -> {
-                headers.put(HttpHeader.CONTENT_TYPE, "audio/wave");
-                headers.put(HttpHeader.ACCEPT, "application/json");
-                headers.put(HttpHeader.AUTHORIZATION, clientUpgradeRequest.getHeader("Authorization"));
-            });
-            // Set the request body with the binary data using BytesRequestContent
-            httpRequest.body(new BytesRequestContent(request.getAudio()));
-            // Send the request and handle the response
-            httpRequest.send(new Response.Listener.Adapter() {
-                @Override
-                public void onContent(Response response, ByteBuffer content)
-                {
-                    String msg = Arrays.toString(content.array());
-                    if (logger.isDebugEnabled())
-                        logger.debug("Received response: " + msg);
-                    resultConsumer.accept(
-                        new TranscriptionResult(
-                                null,
-                                UUID.randomUUID(),
-                                timeRequestReceived,
-                                false,
-                                request.getLocale().toLanguageTag(),
-                                0,
-                                new TranscriptionAlternative(msg)));
-                }
-
-                @Override
-                public void onFailure(Response response, Throwable failure)
-                {
-                    // Handle the failure
-                    logger.error("Request failed: " + failure.getMessage());
-                }
-            });
-            // Stop the client
-            httpClient.stop();
-        }
-        catch (Exception e)
-        {
-            logger.error("Error sending single req", e);
-        }
+        logger.warn("The Deepgram transcription service does not support single requests.");
     }
 
     @Override
     public StreamingRecognitionSession initStreamingSession(Participant participant)
         throws UnsupportedOperationException
     {
+        logger.info("InitStreamingSession for participant " + participant.getDebugName()
+            + " (" + participant.getSourceLanguage() + "/" + participant.getTranslationLanguage() + ")");
         try
         {
             DeepgramWebsocketStreamingSession streamingSession = new DeepgramWebsocketStreamingSession(
@@ -297,8 +258,6 @@ public class DeepgramTranscriptionService
         implements StreamingRecognitionSession
     {
         private Session session;
-        /* The session requires lazy setup */
-        private List<TranscriptionRequest> requestQueue = new ArrayList<>();
         /* The name of the participant */
         private final String debugName;
         /* The sample rate of the audio stream we collect from the first request */
@@ -309,10 +268,11 @@ public class DeepgramTranscriptionService
         private String transcriptionTag = "en-US";
 
         /**
-         * The current sip checker.
+         * KeepAlive (see https://developers.deepgram.com/docs/keep-alive)
+         * The Keep-Alive message will keep the streaming connection open for an additional 12 seconds.
          */
         private DeepgramKeepAliveWebsocket keepAliveChecker
-            = new DeepgramKeepAliveWebsocket(50000);
+            = new DeepgramKeepAliveWebsocket(3_000);
 
         /**
          * List of TranscriptionListeners which will be notified when a
@@ -337,21 +297,16 @@ public class DeepgramTranscriptionService
             EXECUTOR.deRegisterRecurringRunnable(keepAliveChecker);
 
             this.session = null;
+
+            logger.warn("Connection closed for participant " + debugName);
         }
 
         @OnWebSocketConnect
         public void onConnect(Session session)
         {
+            logger.warn("Connection connected for participant " + debugName);
+
             this.session = session;
-
-            initTimestamp = Instant.now();
-
-            List<TranscriptionRequest> pendingRequests = requestQueue;
-            requestQueue = null;
-            for (TranscriptionRequest request : pendingRequests)
-            {
-                sendRequest(request);
-            }
 
             EXECUTOR.registerRecurringRunnable(keepAliveChecker);
         }
@@ -417,15 +372,11 @@ public class DeepgramTranscriptionService
 
         public void sendRequest(TranscriptionRequest request)
         {
+            logger.trace("Send request for participant " + debugName);
+
             if (sampleRate < 0)
             {
                 connect(request);
-            }
-            if (pending())
-            {
-                requestQueue.add(request);
-                logger.info("Queued request for participant " + debugName);
-                return;
             }
 
             try
@@ -457,11 +408,6 @@ public class DeepgramTranscriptionService
             }
         }
 
-        public boolean pending()
-        {
-            return requestQueue != null;
-        }
-
         public boolean ended()
         {
             return session == null;
@@ -486,6 +432,8 @@ public class DeepgramTranscriptionService
                 parts.add("language=" + languageTag);
                 parts.add("encoding=" + "linear16");
                 parts.add("sample_rate=" + Integer.toString(sampleRate));
+                // https://developers.deepgram.com/docs/models-languages-overview
+                // parts.add("model=nova-2"); // not available to us yet
                 if (DEFAULT_MODEL_NOVA.matcher(languageTag).matches())
                 {
                     parts.add("model=nova");
@@ -500,17 +448,17 @@ public class DeepgramTranscriptionService
                 }
                 String url = "wss://" + String.join("&", parts);
 
+                logger.info("Connecting to " + url + " for participant " + debugName);
                 WebSocketClient ws = new WebSocketClient();
                 ws.start();
-                ws.connect(this, new URI(url), clientUpgradeRequest);
 
-                logger.info("Connecting to " + url
-                        + " for participant " + debugName);
+                session = ws.connect(this, new URI(url), clientUpgradeRequest).get();
+                initTimestamp = Instant.now();
+                logger.info("Connected at " + initTimestamp + " for participant " + debugName);
             }
             catch (Exception e)
             {
                 logger.error("Error to create websocket connection for participant " + debugName, e);
-                requestQueue = null;
             }
         }
 
