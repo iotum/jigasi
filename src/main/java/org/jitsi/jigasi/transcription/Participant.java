@@ -685,15 +685,10 @@ public class Participant
             else if (transcriber.getTranscriptionService().supportsStreamRecognition())
             // re-establish prematurely ended streaming session
             {
-                if (!isCompleted && session != null && session.pending())
-                {
-                    // do lazy setup
-                    session.sendRequest(request);
-                    return;
-                }
                 session = transcriber.getTranscriptionService()
                         .initStreamingSession(this);
                 session.addTranscriptionListener(this);
+                sessions.put(getLanguageKey(), session);
             }
             else
             // fallback if TranscriptionService does not support streams
