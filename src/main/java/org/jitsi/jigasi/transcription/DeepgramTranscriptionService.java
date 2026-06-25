@@ -4,10 +4,6 @@
 package org.jitsi.jigasi.transcription;
 
 import com.google.gson.*;
-import org.eclipse.jetty.client.*;
-import org.eclipse.jetty.client.api.*;
-import org.eclipse.jetty.client.util.BytesRequestContent;
-import org.eclipse.jetty.http.*;
 import org.eclipse.jetty.websocket.api.*;
 import org.eclipse.jetty.websocket.api.annotations.*;
 import org.eclipse.jetty.websocket.client.*;
@@ -22,7 +18,6 @@ import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.function.*;
-import java.util.regex.Pattern;
 
 /**
  * Implements a TranscriptionService which uses Deepgram websocket transcription service.
@@ -145,11 +140,6 @@ public class DeepgramTranscriptionService
      * The client with Authorization to the speech-to-text service.
      */
     private ClientUpgradeRequest clientUpgradeRequest;
-
-    /**
-     * The time connection to the service is ready.
-     */
-    private Instant initTimestamp;
 
     /**
      * Check whether the given string contains a supported language tag
@@ -277,6 +267,8 @@ public class DeepgramTranscriptionService
         private String lastResult = "";
         /* Transcription language requested by the user who requested the transcription */
         private String transcriptionTag = "en-US";
+        /* The time connection to the service is ready, per-session */
+        private Instant initTimestamp;
 
         /**
          * KeepAlive (see https://developers.deepgram.com/docs/keep-alive)
@@ -312,7 +304,7 @@ public class DeepgramTranscriptionService
             logger.warn("Connection closed for participant " + debugName);
         }
 
-        @OnWebSocketConnect
+        @OnWebSocketOpen
         public void onConnect(Session session)
         {
             logger.warn("Connection connected for participant " + debugName);
@@ -390,10 +382,16 @@ public class DeepgramTranscriptionService
                 connect(request);
             }
 
+            if (session == null)
+            {
+                logger.warn("No active session for participant " + debugName + ", dropping audio");
+                return;
+            }
+
             try
             {
                 ByteBuffer audioBuffer = ByteBuffer.wrap(request.getAudio());
-                session.getRemote().sendBytes(audioBuffer);
+                session.sendBinary(audioBuffer, Callback.NOOP);
             }
             catch (Exception e)
             {
@@ -411,7 +409,7 @@ public class DeepgramTranscriptionService
             try
             {
                 if (session != null)
-                    session.getRemote().sendString(EOF_MESSAGE);
+                    session.sendText(EOF_MESSAGE, Callback.NOOP);
             }
             catch (Exception e)
             {
@@ -458,6 +456,10 @@ public class DeepgramTranscriptionService
             catch (Exception e)
             {
                 logger.error("Error to create websocket connection for participant " + debugName, e);
+                synchronized (this)
+                {
+                    sampleRate = -1; // reset so the next sendRequest will retry
+                }
             }
         }
 
@@ -475,7 +477,7 @@ public class DeepgramTranscriptionService
                 super.run();
                 try
                 {
-                    session.getRemote().sendString(KEEPALIVE_MESSAGE);
+                    session.sendText(KEEPALIVE_MESSAGE, Callback.NOOP);
                 }
                 catch (Exception e)
                 {
